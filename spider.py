@@ -5,6 +5,7 @@
 Spider Hren - let's parse Web Site and do some 'deep ANALytics'!
 """
 
+import urllib2
 import logging
 import unittest
 import itertools
@@ -12,10 +13,13 @@ import zlib
 import urllib
 import os
 import sys
+import ssl
+import time
 from urllib2 import URLError
 from urlparse import urljoin
 from HTMLParser import HTMLParser
-from logging import info, debug
+from logging import info, debug, error
+from multiprocessing import Pool as ThreadPool
 
 URI = str(sys.argv[1])
 logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.INFO)
@@ -89,25 +93,25 @@ class UrlFinder(HTMLParser):
                 pass
 
 
-def parser(target, tag):
+def parser(node, tag):
     """
-    Parse sitemap "where - URI" / "search inside this tag"
+    Parse sitemap "where - node" / "search inside this tag"
     """
     result = []
     _parser = UrlFinder(tag)
-    response = urllib.urlopen(target).read()
+    response = urllib.urlopen(node).read()
     if len(response) > 0:
-        if urllib.urlopen(target).headers.getheader('Content-Encoding') == 'gzip':
+        if urllib.urlopen(node).headers.getheader('Content-Encoding') == 'gzip':
             content = zlib.decompress(response, zlib.MAX_WBITS | 32)
         else:
             content = response
         _parser.feed(content)
         for link in _parser.links:
-            result.append([link, target])
+            result.append([link, node])
         return result
     else:
         info('Content length: %s on %s by tag: %s' %
-             (str(len(response)), str(target), str(tag)))
+             (str(len(response)), str(node), str(tag)))
 
 
 class Spider(object):
@@ -123,39 +127,49 @@ class Spider(object):
         """
         info("__________________")
         info("Iterator started on node: %s" % node)
-        info("Self.Output")
 
         def on_exit():
             """
             Before escape from iterator do:
-            """
+
             info('URI before escape: %s' % self.driver.current_url)
             info('Reload + JS: %s' % node)
             self.driver.get(node)
             self.driver.execute_script(JS_CODE)
             info('URI after escape: %s' % self.driver.current_url)
+            """
 
-        for i in self.output:
-            info(i)
+        # for i in self.output:
+        info("Output contain %s lines" % len(self.output))
 
         def nodelist_checker(node, nodelist):
             """
-            Find child URI inside the parental node,
+            Find 'node' inside the parentals from 'nodelist',
             if found: return 1
             if not: return 0
+
+            nodelist cell format:
+            [0] - children node
+            [1] - parental node
             """
             for transition in nodelist:
                 if transition[0] == node:
                     return 1
             return 0
 
+        """
+        Get all href's from node via 'parser' function
+        """
         childs = parser(node, 'a')
-        if childs:
-            self.output = self.output + childs
-            for j in childs:
-                if not nodelist_checker(j[1], self.output):
-                    self.iterator(j[1])
-                break
+        self.output = self.output + childs
+        for j in childs:
+            info("Trying to compare child node: %s from\n"
+                 "parental node: %s" % (j[0], j[1]))
+            if not nodelist_checker(j[0], self.output):
+                info("This child was not visited, start iterator!")
+                self.iterator(j[1])
+            info("Iterator completed, exit loop")
+            break
 
         self.output = filt(self.output)
 
@@ -176,7 +190,7 @@ class Spider(object):
                 uris.append(str(cell[1]).replace("https", "http"))
         uris = filt(uris)
         info("Links: %s" % str(len(uris)))
-        code = exec_multi(20, urlopen, uris)
+        code = exec_multi(1, urlopen, uris)
         message = []
         for i in range(0, len(uris)):
             if code[i] != "OK":
