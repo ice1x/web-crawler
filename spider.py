@@ -33,8 +33,9 @@ def unify_uri(uri):
     :return: it
     """
     info("URI before unifying: %s" % uri)
-    uri += '/' if uri[-1] != '/' else ''
-    uri = URI + uri if uri[0] == '/' else None
+    # uri += '/' if uri[-1] != '/' else ''
+    uri = URI + uri if uri[0] == '/' else uri
+    uri = URI + '/' + uri if 'http' not in uri else uri
     info("URI after unifying: %s" % uri)
     return uri
 
@@ -111,20 +112,13 @@ def parser(node, tag):
     """
     Parse sitemap "where - node" / "search inside this tag"
     """
-    """
-    href = str(child.get_attribute('href'))
-            if (href and (self.base_name in href or href[0] == '/') and
-                    check_condition(self.blacklist, href)):
-                processed_link = unify_uri(node)
-                childrens.append([processed_link, str(child.get_attribute('href'))])
-    """
     result = []
     _parser = UrlFinder(tag)
     try:
         response = urllib.urlopen(node).read()
     except Exception as e:
-        info("urllib failed: %s" % e.args)
-        response = None
+        info("urllib failed: %s" % e.__repr__())
+        response = []
 
     if response and len(response) > 0:
         if urllib.urlopen(node).headers.getheader('Content-Encoding') == 'gzip':
@@ -133,7 +127,8 @@ def parser(node, tag):
             content = response
         _parser.feed(content)
         for link in _parser.links:
-            if URI in link or link[0] == '/':
+            processed_link = link
+            if URI in link or 'http' not in link:
                 processed_link = unify_uri(link)
             result.append([processed_link, node])
         return result
@@ -155,20 +150,6 @@ class Spider(object):
         """
         info("__________________")
         info("Iterator started on node: %s" % node)
-
-        def on_exit():
-            """
-            Before escape from iterator do:
-
-            info('URI before escape: %s' % self.driver.current_url)
-            info('Reload + JS: %s' % node)
-            self.driver.get(node)
-            self.driver.execute_script(JS_CODE)
-            info('URI after escape: %s' % self.driver.current_url)
-            """
-
-        # for i in self.output:
-        info("Output during iterator start contain %s lines" % len(self.output))
 
         def nodelist_checker(node, nodelist):
             """
