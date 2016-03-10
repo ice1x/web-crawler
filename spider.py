@@ -120,8 +120,13 @@ def parser(node, tag):
     """
     result = []
     _parser = UrlFinder(tag)
-    response = urllib.urlopen(node).read()
-    if len(response) > 0:
+    try:
+        response = urllib.urlopen(node).read()
+    except Exception as e:
+        info("urllib failed: %s" % e.args)
+        response = None
+
+    if response and len(response) > 0:
         if urllib.urlopen(node).headers.getheader('Content-Encoding') == 'gzip':
             content = zlib.decompress(response, zlib.MAX_WBITS | 32)
         else:
