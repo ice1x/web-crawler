@@ -33,7 +33,7 @@ def unify_uri(uri):
     :return: it
     """
     info("URI before unifying: %s" % uri)
-    # uri += '/' if uri[-1] != '/' else ''
+    uri += '/' if uri[-1] != '/' else uri
     uri = URI + uri if uri[0] == '/' else uri
     uri = URI + '/' + uri if 'http' not in uri else uri
     info("URI after unifying: %s" % uri)
@@ -93,7 +93,6 @@ def urlopen(url):
 
 
 class UrlFinder(HTMLParser):
-
     def __init__(self, my_tag):
         HTMLParser.__init__(self)
         self.links = []
@@ -127,7 +126,6 @@ def parser(node, tag):
             content = response
         _parser.feed(content)
         for link in _parser.links:
-            processed_link = link
             if URI in link or 'http' not in link:
                 processed_link = unify_uri(link)
                 result.append([processed_link, node])
@@ -138,7 +136,6 @@ def parser(node, tag):
 
 
 class Spider(object):
-
     def __init__(self, base_url):
         self.base_url = base_url
         self.output = []
@@ -209,7 +206,7 @@ class Spider(object):
             if code[i] != "OK":
                 for cell in self.output:
                     if cell[1] == uris[i]:
-                        message.append([code[i], cell[1], " <<< "+cell[0]])
+                        message.append([code[i], cell[1], " <<< " + cell[0]])
         return message
 
 
@@ -224,7 +221,8 @@ class SpiderHren(unittest.TestCase):
         """
         spider_unit = Spider(URI)
         message = spider_unit.check()
-        self.assertTrue(len(message) == 0, "\n"+"\n".join(' :: '.join(x) for x in message))
+        self.assertTrue(len(message) == 0, "\n" + "\n".join(' :: '.join(x) for x in message))
+
 
 if __name__ == "__main__":
     unittest.main(argv=[sys.argv[0]], verbosity=2)
