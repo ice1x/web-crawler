@@ -130,7 +130,7 @@ def parser(node, tag):
             processed_link = link
             if URI in link or 'http' not in link:
                 processed_link = unify_uri(link)
-            result.append([processed_link, node])
+                result.append([processed_link, node])
         return result
     else:
         info('Content length: %s on %s by tag: %s' %
