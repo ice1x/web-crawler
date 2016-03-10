@@ -25,6 +25,20 @@ URI = str(sys.argv[1])
 logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.INFO)
 
 
+def unify_uri(uri):
+    """
+    :param uri: is not unified on the site,
+    sometimes it ended by slash, sometimes not.
+    Let's add slash everywhere it absent and
+    :return: it
+    """
+    info("URI before unifying: %s" % uri)
+    uri += '/' if uri[-1] != '/' else ''
+    uri = URI + uri if uri[0] == '/' else None
+    info("URI after unifying: %s" % uri)
+    return uri
+
+
 def exec_multi(thread_count, function, multi_args):
     pool = ThreadPool(thread_count)
     responses = pool.map(function, multi_args)
@@ -97,6 +111,13 @@ def parser(node, tag):
     """
     Parse sitemap "where - node" / "search inside this tag"
     """
+    """
+    href = str(child.get_attribute('href'))
+            if (href and (self.base_name in href or href[0] == '/') and
+                    check_condition(self.blacklist, href)):
+                processed_link = unify_uri(node)
+                childrens.append([processed_link, str(child.get_attribute('href'))])
+    """
     result = []
     _parser = UrlFinder(tag)
     response = urllib.urlopen(node).read()
@@ -107,7 +128,9 @@ def parser(node, tag):
             content = response
         _parser.feed(content)
         for link in _parser.links:
-            result.append([link, node])
+            if URI in link or link[0] == '/':
+                processed_link = unify_uri(link)
+            result.append([processed_link, node])
         return result
     else:
         info('Content length: %s on %s by tag: %s' %
@@ -140,7 +163,7 @@ class Spider(object):
             """
 
         # for i in self.output:
-        info("Output contain %s lines" % len(self.output))
+        info("Output during iterator start contain %s lines" % len(self.output))
 
         def nodelist_checker(node, nodelist):
             """
@@ -161,16 +184,20 @@ class Spider(object):
         Get all href's from node via 'parser' function
         """
         childs = parser(node, 'a')
-        self.output = self.output + childs
+        info("Output during child processing contain %s lines" % len(childs))
         for j in childs:
             info("Trying to compare child node: %s from\n"
                  "parental node: %s" % (j[0], j[1]))
             if not nodelist_checker(j[0], self.output):
-                info("This child was not visited, start iterator!")
-                self.iterator(j[1])
-            info("Iterator completed, exit loop")
-            break
+                info("Child %s was not visited, start iterator!" % j[0])
+                self.output.append(j)
+                self.iterator(j[0])
+            else:
+                info("Child %s was visited, skip!" % j[0])
 
+            info("Iterator completed, exit loop")
+
+        # self.output = self.output + childs
         self.output = filt(self.output)
 
     def check(self):
