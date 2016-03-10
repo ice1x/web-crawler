@@ -5,6 +5,7 @@
 Spider Hren - let's parse Web Site and do some 'deep ANALytics'!
 """
 
+import logging
 import unittest
 import itertools
 import zlib
@@ -14,8 +15,10 @@ import sys
 from urllib2 import URLError
 from urlparse import urljoin
 from HTMLParser import HTMLParser
+from logging import info, debug
 
 URI = str(sys.argv[1])
+logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.INFO)
 
 
 def exec_multi(thread_count, function, multi_args):
@@ -48,12 +51,14 @@ def urlopen(url):
                 message = str(e.code)
             elif hasattr(e, 'reason'):
                 message = e.reason
-            debug("%s - %s" % (message, str(url)))
+            # this message should be 'debug'
+            info("%s - %s" % (message, str(url)))
             return message
         except ssl.CertificateError, e:
             if e.message == "hostname 'vl.pdfm10.parallels.com' doesn't match either " \
                             "of 'registration.parallels.com', 'www.registration.parallels.com'":
-                debug("XFail: %s - %s" % (e.message, str(url)))
+                # this message should be 'debug'
+                info("XFail: %s - %s" % (e.message, str(url)))
                 return e.message
             else:
                 info('Got exception: %s - differ than XFail on URI: %s' % (e, url))
@@ -116,24 +121,36 @@ class Spider(object):
         """
         Iterator walks through the website and launch itself if child-link found
         """
-        print "Iterator started on node:" + node
-        print "Self.Output"
-        for i in self.output:
-            print i
+        info("__________________")
+        info("Iterator started on node: %s" % node)
+        info("Self.Output")
 
-        def nodelist_checker(node, list):
+        def on_exit():
+            """
+            Before escape from iterator do:
+            """
+            info('URI before escape: %s' % self.driver.current_url)
+            info('Reload + JS: %s' % node)
+            self.driver.get(node)
+            self.driver.execute_script(JS_CODE)
+            info('URI after escape: %s' % self.driver.current_url)
+
+        for i in self.output:
+            info(i)
+
+        def nodelist_checker(node, nodelist):
             """
             Find child URI inside the parental node,
             if found: return 1
             if not: return 0
             """
-            for n in list:
-                if n[0] == node:
+            for transition in nodelist:
+                if transition[0] == node:
                     return 1
             return 0
 
         childs = parser(node, 'a')
-        if childs != 0:
+        if childs:
             self.output = self.output + childs
             for j in childs:
                 if not nodelist_checker(j[1], self.output):
@@ -148,9 +165,9 @@ class Spider(object):
         HTTP status code :: broken URI :: <<< parental URI
         and append to message
         """
-        print "Call zero iterator on node:" + self.base_url
+        info("Call zero iterator on node: %s" % self.base_url)
         self.iterator(self.base_url)
-        print "Crawling completed!"
+        info("Crawling completed!")
         uris = []
         for cell in self.output:
             if cell[1].find('https') == -1:
@@ -158,7 +175,7 @@ class Spider(object):
             else:
                 uris.append(str(cell[1]).replace("https", "http"))
         uris = filt(uris)
-        print "Links: " + str(len(uris))
+        info("Links: %s" % str(len(uris)))
         code = exec_multi(20, urlopen, uris)
         message = []
         for i in range(0, len(uris)):
