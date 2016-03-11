@@ -8,5 +8,5 @@ $python ./spider.py "http://www.domain_name.ext"
 
 
 #Planned features:
-*Web GUI with authentification by DNS/HTML
+*Web GUI with authentification by DNS/HTML signature
 
