@@ -23,6 +23,7 @@ from multiprocessing import Pool as ThreadPool
 
 URI = str(sys.argv[1])
 logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.INFO)
+BLACKLIST = ['#']
 
 
 def unify_uri(uri):
@@ -32,10 +33,18 @@ def unify_uri(uri):
     Let's add slash everywhere it absent and
     :return: it
     """
+    for word in BLACKLIST:
+        if word in uri:
+            return 'blank'
     info("URI before unifying: %s" % uri)
-    uri += '/' if uri[-1] != '/' else uri
-    uri = URI + uri if uri[0] == '/' else uri
+    if uri == '/':
+        uri = URI
+    if uri[0] == '/':
+        uri = URI + uri
     uri = URI + '/' + uri if 'http' not in uri else uri
+    if uri[-1] != '/':
+        # Add slash to the end to prevent any downloading
+        uri += '/'
     info("URI after unifying: %s" % uri)
     return uri
 
@@ -126,13 +135,13 @@ def parser(node, tag):
             content = response
         _parser.feed(content)
         for link in _parser.links:
-            if URI in link or 'http' not in link:
+            if link and (URI in link or 'http' not in link):
                 processed_link = unify_uri(link)
                 result.append([processed_link, node])
-        return result
     else:
         info('Content length: %s on %s by tag: %s' %
              (str(len(response)), str(node), str(tag)))
+    return result
 
 
 class Spider(object):
@@ -182,6 +191,8 @@ class Spider(object):
 
         # self.output = self.output + childs
         self.output = filt(self.output)
+        info("__________________")
+        info("Iterator out from node: %s" % node)
 
     def check(self):
         """
