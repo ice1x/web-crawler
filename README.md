@@ -5,3 +5,8 @@ Check their HTTP code.
 #How-To use:
 
 $python ./spider.py "http://www.domain_name.ext"
+
+
+#Planned features:
+*Web GUI with authentification by DNS/HTML
+
