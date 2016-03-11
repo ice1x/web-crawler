@@ -1,6 +1,6 @@
 #Web Spider
-This application walk through the web site and collecting URI's,
-after collecting completed - check their HTTP code.
+This application walk through the web site and collecting URI's.
+Check their HTTP code.
 
 #How-To use:
 
