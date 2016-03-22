@@ -82,17 +82,8 @@ def urlopen(url):
             # this message should be 'debug'
             info("%s - %s" % (message, str(url)))
             return message
-        except ssl.CertificateError, e:
-            if e.message == "hostname 'vl.pdfm10.parallels.com' doesn't match either " \
-                            "of 'registration.parallels.com', 'www.registration.parallels.com'":
-                # this message should be 'debug'
-                info("XFail: %s - %s" % (e.message, str(url)))
-                return e.message
-            else:
-                info('Got exception: %s - differ than XFail on URI: %s' % (e, url))
-                return e.message
         except Exception, e:
-            error('Exception: %s - %s - %s' % (str(url), str(e.message), str(e.args)))
+            error('Exception: %s - %s' % (str(url), repr(e)))
             time.sleep(1)
             try_urlopen('OK')
         return message
