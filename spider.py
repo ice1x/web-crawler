@@ -198,6 +198,7 @@ class Spider(object):
         info("Crawling completed!")
         uris = []
         for cell in self.output:
+            info("cell[0] >>> cell[1]")
             if cell[1].find('https') == -1:
                 uris.append(cell[1])
             else:
