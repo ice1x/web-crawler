@@ -43,6 +43,7 @@ def unify_uri(uri):
         uri = URI
     if uri[0] == '/':
         uri = URI + uri
+    uri = 'http://' + uri if ('http' not in uri and 'www' in uri) else uri
     uri = URI + '/' + uri if 'http' not in uri else uri
     if uri[-1] != '/':
         # Add slash to the end to prevent any downloading
