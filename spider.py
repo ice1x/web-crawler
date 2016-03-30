@@ -40,11 +40,19 @@ def unify_uri(uri):
             return 'blank'
     info("URI before unifying: %s" % uri)
     if uri == '/':
+        info("URI update 1: %s >>> %s" % (uri, URI))
         uri = URI
     if uri[0] == '/':
+        info("URI update 2: %s >>> %s" % (uri, URI + uri))
         uri = URI + uri
-    uri = URI + '/' + uri if 'http' not in uri else uri
+    if 'http' not in uri and 'www' in uri:
+        info("URI update 3: %s >>> %s" % (uri, 'http://' + uri))
+        uri = 'http://' + uri
+    if 'http' not in uri:
+        info("URI update 4: %s >>> %s" % (uri, URI + '/' + uri))
+        uri = URI + '/' + uri
     if uri[-1] != '/':
+        info("URI update 5: %s >>> %s" % (uri, uri + '/'))
         # Add slash to the end to prevent any downloading
         uri += '/'
     info("URI after unifying: %s" % uri)
@@ -198,7 +206,7 @@ class Spider(object):
         info("Crawling completed!")
         uris = []
         for cell in self.output:
-            info("%s >>> %s" % (cell[0], cell[1]))
+            info("%s >>> %s" % (cell[1], cell[0]))
             if cell[1].find('https') == -1:
                 uris.append(cell[1])
             else:
