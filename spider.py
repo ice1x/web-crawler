@@ -22,7 +22,9 @@ from logging import info, debug, error
 from multiprocessing import Pool as ThreadPool
 
 URI = str(sys.argv[1])
-logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.INFO)
+logging.basicConfig(filename='spiderhren.log',
+                    format='%(levelname)s:%(message)s',
+                    level=logging.INFO)
 BLACKLIST = ['#']
 
 
