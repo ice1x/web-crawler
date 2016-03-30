@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 """
+init
 2016 (c) Iakhin Ilia
 Spider Hren - let's parse Web Site and do some 'deep ANALytics'!
 """
