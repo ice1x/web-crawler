@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 
 """
-init
 2016 (c) Iakhin Ilia
 Spider Hren - let's parse Web Site and do some 'deep ANALytics'!
 """
@@ -26,7 +25,7 @@ URI = str(sys.argv[1])
 logging.basicConfig(filename='spiderhren.log',
                     format='%(levelname)s:%(message)s',
                     level=logging.INFO)
-BLACKLIST = ['#']
+BLACKLIST = ['#', "@"]
 
 
 def unify_uri(uri):
@@ -199,7 +198,7 @@ class Spider(object):
         info("Crawling completed!")
         uris = []
         for cell in self.output:
-            info("cell[0] >>> cell[1]")
+            info("%s >>> %s" % (cell[0], cell[1]))
             if cell[1].find('https') == -1:
                 uris.append(cell[1])
             else:
