@@ -2,29 +2,46 @@
 
 """
 2016 (c) Iakhin Ilia
-Spider Hren - let's parse Web Site and do some 'deep ANALytics'!
+Web Crawler - Website parser and URL collector
 """
 
-import urllib2
-import logging
-import unittest
 import itertools
-import zlib
-import urllib
-import os
+import logging
 import sys
-import ssl
 import time
-from urllib2 import URLError
-from urlparse import urljoin
-from HTMLParser import HTMLParser
-from logging import info, debug, error
+import unittest
+import urllib
+import zlib
+import ssl
+import urllib.request
+
+from abc import ABC
+from logging import info, error
 from multiprocessing import Pool as ThreadPool
 
-URI = str(sys.argv[1])
-logging.basicConfig(filename='spiderhren.log',
-                    format='%(levelname)s:%(message)s',
-                    level=logging.INFO)
+from urllib3 import PoolManager
+
+from html.parser import HTMLParser
+from urllib.error import URLError
+
+try:
+    _create_unverified_https_context = ssl._create_unverified_context
+except AttributeError:
+    # Legacy Python that doesn't verify HTTPS certificates by default
+    pass
+else:
+    # Handle target environment that doesn't support HTTPS verification
+    ssl._create_default_https_context = _create_unverified_https_context
+
+MANAGER = PoolManager(10)
+if len(sys.argv) > 1:
+    URI = str(sys.argv[1])
+else:
+    URI = 'http://quotes.toscrape.com'
+logging.basicConfig(
+    filename='spiderhren.log',
+    format='%(levelname)s:%(message)s',
+    level=logging.INFO)
 BLACKLIST = ['#', "@"]
 
 
@@ -83,8 +100,8 @@ def urlopen(url):
 
     def try_urlopen(message):
         try:
-            urllib2.urlopen(url, timeout=30)
-        except URLError, e:
+            MANAGER.request(url, timeout=30)
+        except URLError as e:
             if hasattr(e, 'code'):
                 message = str(e.code)
             elif hasattr(e, 'reason'):
@@ -92,7 +109,7 @@ def urlopen(url):
             # this message should be 'debug'
             info("%s - %s" % (message, str(url)))
             return message
-        except Exception, e:
+        except Exception as e:
             error('Exception: %s - %s' % (str(url), repr(e)))
             time.sleep(1)
             try_urlopen('OK')
@@ -102,7 +119,7 @@ def urlopen(url):
     return message
 
 
-class UrlFinder(HTMLParser):
+class UrlFinder(HTMLParser, ABC):
     def __init__(self, my_tag):
         HTMLParser.__init__(self)
         self.links = []
@@ -124,17 +141,17 @@ def parser(node, tag):
     result = []
     _parser = UrlFinder(tag)
     try:
-        response = urllib.urlopen(node).read()
+        response = urllib.request.urlopen(node).read()
     except Exception as e:
         info("urllib failed: %s" % e.__repr__())
         response = []
 
     if response and len(response) > 0:
-        if urllib.urlopen(node).headers.getheader('Content-Encoding') == 'gzip':
+        if urllib.request.urlopen(node).headers.get('Content-Encoding') == 'gzip':
             content = zlib.decompress(response, zlib.MAX_WBITS | 32)
         else:
             content = response
-        _parser.feed(content)
+        _parser.feed(content.decode())
         for link in _parser.links:
             if link and (URI in link or 'http' not in link):
                 processed_link = unify_uri(link)
