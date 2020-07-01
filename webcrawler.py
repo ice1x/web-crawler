@@ -43,9 +43,11 @@ logging.basicConfig(
     format='%(levelname)s:%(message)s',
     level=logging.INFO)
 BLACKLIST = ['#', "@"]
+LINE = '__________________'
+TAG = 'a'
 
 
-def unify_uri(old_uri):
+def get_normalized_uri(old_uri):
     """
     Prepare URL's
 
@@ -59,23 +61,28 @@ def unify_uri(old_uri):
             return 'blank'
 
     info(f'URI before unifying: {old_uri}')
+
     if old_uri == '/':
         new_uri = URI
     elif old_uri[0] == '/':
         new_uri = URI + old_uri
+
     if 'http' not in old_uri and 'www' in old_uri:
         new_uri = 'http://' + old_uri
     elif 'http' not in old_uri:
         new_uri = URI + '/' + old_uri
+
     if old_uri[-1] != '/':
         new_uri += '/'
         # Add slash to the end to prevent any downloading
+
     info(f'URI updated: {old_uri} >>> {new_uri}')
     return new_uri
 
 
 def exec_multi(thread_count, function, multi_args):
     """
+    Run function on thread_count threads
 
     Args:
         thread_count(int):
@@ -86,13 +93,13 @@ def exec_multi(thread_count, function, multi_args):
         (list):
     """
     pool = ThreadPool(thread_count)
-    responses = pool.map(function, multi_args)
+    result = pool.map(function, multi_args)
     pool.close()
     pool.join()
-    return responses
+    return result
 
 
-def filt(a):
+def drop_duplicates(a):
     """
     Remove matches from list
 
@@ -106,44 +113,34 @@ def filt(a):
     return list(a for a, _ in itertools.groupby(a))
 
 
-def urlopen(url):
+def get_url_code(url, message_='OK'):
     """
-    Get HTTP code
-    func. from sitemap
+    Try to get url and return HTTP status code
+
     Args:
         url(str):
+        message_(str):
 
     Returns:
-
+        (str)
     """
 
-    def try_urlopen(message_='OK'):
-        """
-
-        Args:
-            message_(str):
-
-        Returns:
-            (str)
-        """
-        try:
-            MANAGER.request('GET', url, timeout=30)
-        except URLError as e:
-            if hasattr(e, 'code'):
-                message_ = str(e.code)
-            elif hasattr(e, 'reason'):
-                message_ = e.reason
-            # TODO: this log message should be 'debug'
-            info(f'{message_} - {str(url)}')
-            return message_
-        except Exception as e:
-            error(f'Exception: {str(url)} - {repr(e)}')
-            time.sleep(1)
-            try_urlopen()
+    try:
+        MANAGER.request('GET', url, timeout=30)
+    except URLError as e:
+        if hasattr(e, 'code'):
+            message_ = str(e.code)
+        elif hasattr(e, 'reason'):
+            message_ = e.reason
+        # TODO: this log message should be 'debug'
+        info(f'{message_} - {str(url)}')
         return message_
-
-    message = try_urlopen()
-    return message
+    except Exception as e:
+        error(f'Exception: {str(url)} - {repr(e)}')
+        time.sleep(1)
+        info(f'{LINE}One more attempt')
+        return get_url_code()
+    return message_
 
 
 class UrlFinder(HTMLParser, ABC):
@@ -175,7 +172,7 @@ class UrlFinder(HTMLParser, ABC):
                 pass
 
 
-def parser(node, tag):
+def html_tag_parser(node, tag):
     """
     Parse sitemap "where - node" / "search inside this tag"
 
@@ -202,7 +199,7 @@ def parser(node, tag):
         _parser.feed(content.decode())
         for link in _parser.links:
             if link and (URI in link or 'http' not in link):
-                processed_link = unify_uri(link)
+                processed_link = get_normalized_uri(link)
                 result.append([processed_link, node])
     else:
         info(f'Content length: {str(len(response))} on {str(node)} by tag: {str(tag)}')
@@ -225,7 +222,7 @@ class WebCrawler(object):
         Returns:
             (None): increment self.output
         """
-        info('__________________')
+        info(LINE)
         info(f'Iterator started on node: {node}')
 
         def nodelist_checker(node_, nodelist):
@@ -252,13 +249,10 @@ class WebCrawler(object):
         """
         Get all href's from node via 'parser' function
         """
-        childs = parser(node, 'a')
+        childs = html_tag_parser(node, TAG)
         info(f'Output during child processing contain {len(childs)} lines')
         for j in childs:
-            info(
-                f'Trying to compare child node: {j[0]} from\n'
-                f'parental node: {j[1]}'
-            )
+            info(f'Trying to compare child node: {j[0]} from\nparental node: {j[1]}')
             if not nodelist_checker(j[0], self.output):
                 info(f'Child {j[0]} was not visited, start iterator!')
                 self.output.append(j)
@@ -268,16 +262,14 @@ class WebCrawler(object):
 
             info('Iterator completed, exit loop')
 
-        # self.output = self.output + childs
-        self.output = filt(self.output)
-        info('__________________')
+        self.output = drop_duplicates(self.output)
+        info(LINE)
         info(f'Iterator out from node: {node}')
 
     def check_urls(self):
         """
         For each broken URI generate string like:
-        HTTP status code :: broken URI :: <<< parental URI
-        and append to message
+        HTTP status code :: broken URI :: <<< parental URI and append to message
 
         Returns:
             broken_urls(list):
@@ -292,9 +284,9 @@ class WebCrawler(object):
                 uris.append(cell[1])
             else:
                 uris.append(str(cell[1]).replace('https', 'http'))
-        uris = filt(uris)
+        uris = drop_duplicates(uris)
         info(f'Links: {str(len(uris))}')
-        code = exec_multi(1, urlopen, uris)
+        code = exec_multi(1, get_url_code, uris)
         broken_urls = []
         for i in range(0, len(uris)):
             if code[i] != 'OK':
@@ -306,16 +298,16 @@ class WebCrawler(object):
 
 class CheckUrls(unittest.TestCase):
     """
-    Unittest class,pylint make me a capitan
+    Unittest class as a launcher with embedded logging and asserts
     """
 
     def test_spider(self):
         """
-        Show message if it exist
+        Show broken URL's if exists
         """
-        spider_unit = WebCrawler(URI)
-        message = spider_unit.check_urls()
-        self.assertTrue(len(message) == 0, '\n' + '\n'.join(' :: '.join(x) for x in message))
+        web_crawler = WebCrawler(URI)
+        broken_urls = web_crawler.check_urls()
+        self.assertTrue(len(broken_urls) == 0, '\n' + '\n'.join(' :: '.join(x) for x in broken_urls))
 
 
 if __name__ == '__main__':
