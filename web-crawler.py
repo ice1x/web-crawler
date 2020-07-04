@@ -33,6 +33,7 @@ else:
     # Handle target environment that doesn't support HTTPS verification
     ssl._create_default_https_context = _create_unverified_https_context
 
+THREADS = 1
 MANAGER = PoolManager(10)
 if len(sys.argv) > 1:
     URI = str(sys.argv[1])
@@ -80,19 +81,19 @@ def get_normalized_uri(old_uri):
     return new_uri
 
 
-def exec_multi(thread_count, function, multi_args):
+def exec_multi(threads, function, multi_args):
     """
     Run function on thread_count threads
 
     Args:
-        thread_count(int):
+        threads(int):
         function(function):
         multi_args(list):
 
     Returns:
         (list):
     """
-    pool = ThreadPool(thread_count)
+    pool = ThreadPool(threads)
     result = pool.map(function, multi_args)
     pool.close()
     pool.join()
@@ -141,6 +142,25 @@ def get_url_code(url, message_='OK'):
         info(f'{LINE}One more attempt')
         return get_url_code()
     return message_
+
+
+def get_urls_by_redirects(redirects):
+    """
+    Get URL's by redirects without a prefix
+    Args:
+        redirects(list): list of list's where: 0 - child, 1 - parent
+
+    Returns:
+        (list): parental URL's
+    """
+    uris = []
+    for cell in redirects:
+        info(f'Checked: {cell[1]} >>> {cell[0]}')
+        if cell[1].find('https') == -1:
+            uris.append(cell[1])
+        else:
+            uris.append(str(cell[1]).replace('https', 'http'))
+    return uris
 
 
 class UrlFinder(HTMLParser, ABC):
@@ -206,13 +226,52 @@ def html_tag_parser(node, tag):
     return result
 
 
+def nodelist_checker(node_, nodelist):
+    """
+    Find 'node' inside the parentals from 'nodelist',
+    if found: return 1
+    if not: return 0
+
+    nodelist cell format:
+    [0] - children node
+    [1] - parental node
+    Args:
+        node_(str): URL
+        nodelist(list): child URL's
+
+    Returns:
+        (int):
+    """
+    for transition in nodelist:
+        if transition[0] == node_:
+            return True
+
+
 class WebCrawler(object):
     def __init__(self, base_url):
         self.base_url = base_url
-        self.output = []
+        self.redirects = []
         self.message = []
 
-    def iterator(self, node):
+    def _add_redirects(self, redirects):
+        """
+        Args:
+            redirects(list):
+        Returns:
+            (None)
+        """
+        for redirect in redirects:
+            info(f'Trying to compare child node: {redirect[0]} from\nparental node: {redirect[1]}')
+            if not nodelist_checker(redirect[0], self.redirects):
+                info(f'Child {redirect[0]} was not visited, start iterator!')
+                self.redirects.append(redirect)
+                self._iterator(redirect[0])
+            else:
+                info(f'Child {redirect[0]} was visited, skip!')
+
+            info('Iterator completed, exit loop')
+
+    def _iterator(self, node):
         """
         Iterator walks through the website and launch itself if child-link found
 
@@ -225,44 +284,13 @@ class WebCrawler(object):
         info(LINE)
         info(f'Iterator started on node: {node}')
 
-        def nodelist_checker(node_, nodelist):
-            """
-            Find 'node' inside the parentals from 'nodelist',
-            if found: return 1
-            if not: return 0
-
-            nodelist cell format:
-            [0] - children node
-            [1] - parental node
-            Args:
-                node_(str): URL
-                nodelist(list): child URL's
-
-            Returns:
-                (int):
-            """
-            for transition in nodelist:
-                if transition[0] == node_:
-                    return 1
-            return 0
-
         """
         Get all href's from node via 'parser' function
         """
-        childs = html_tag_parser(node, TAG)
-        info(f'Output during child processing contain {len(childs)} lines')
-        for j in childs:
-            info(f'Trying to compare child node: {j[0]} from\nparental node: {j[1]}')
-            if not nodelist_checker(j[0], self.output):
-                info(f'Child {j[0]} was not visited, start iterator!')
-                self.output.append(j)
-                self.iterator(j[0])
-            else:
-                info(f'Child {j[0]} was visited, skip!')
-
-            info('Iterator completed, exit loop')
-
-        self.output = drop_duplicates(self.output)
+        redirects = html_tag_parser(node, TAG)
+        info(f'Output during child processing contain {len(redirects)} lines')
+        self._add_redirects(redirects)
+        self.redirects = drop_duplicates(self.redirects)
         info(LINE)
         info(f'Iterator out from node: {node}')
 
@@ -274,31 +302,28 @@ class WebCrawler(object):
         Returns:
             broken_urls(list):
         """
-        info(f'Call zero iterator on node: {self.base_url}')
-        self.iterator(self.base_url)
-        info('Crawling completed!')
-        uris = []
-        for cell in self.output:
-            info(f'Checked: {cell[1]} >>> {cell[0]}')
-            if cell[1].find('https') == -1:
-                uris.append(cell[1])
-            else:
-                uris.append(str(cell[1]).replace('https', 'http'))
+        info(f'Call initial iterator on node: {self.base_url}')
+        self._iterator(self.base_url)
+        info(f'Crawling completed! Processed: {len(self.redirects)} URLs')
+
+        uris = get_urls_by_redirects(self.redirects)
         uris = drop_duplicates(uris)
+
         info(f'Links: {str(len(uris))}')
-        code = exec_multi(1, get_url_code, uris)
+        code = exec_multi(THREADS, get_url_code, uris)
         broken_urls = []
         for i in range(0, len(uris)):
-            if code[i] != 'OK':
-                for cell in self.output:
-                    if cell[1] == uris[i]:
-                        broken_urls.append([code[i], cell[1], f' <<< {cell[0]}'])
+            if code[i] == 'OK':
+                continue
+            for cell in self.redirects:
+                if cell[1] == uris[i]:
+                    broken_urls.append([code[i], cell[1], f' <<< {cell[0]}'])
         return broken_urls
 
 
 class CheckUrls(unittest.TestCase):
     """
-    Unittest class as a launcher with embedded logging and asserts
+    Unittest class as launcher with embedded logging and asserts
     """
 
     def test_spider(self):
