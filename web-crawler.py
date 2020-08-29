@@ -2,7 +2,7 @@
 
 """
 2016 (c) Iakhin Ilia
-Web Crawler - Website parser and URL collector
+Web Crawler - Website parser and URL collector to check broken urls on web page automatically
 """
 
 import itertools
@@ -33,7 +33,7 @@ else:
     # Handle target environment that doesn't support HTTPS verification
     ssl._create_default_https_context = _create_unverified_https_context
 
-THREADS = 1
+THREADS = 8
 MANAGER = PoolManager(10)
 if len(sys.argv) > 1:
     URI = str(sys.argv[1])
@@ -68,14 +68,14 @@ def get_normalized_uri(old_uri):
     elif old_uri[0] == '/':
         new_uri = URI + old_uri
 
-    if 'http' not in old_uri and 'www' in old_uri:
+    elif 'http' not in old_uri and 'www' in old_uri:
         new_uri = 'http://' + old_uri
     elif 'http' not in old_uri:
         new_uri = URI + '/' + old_uri
 
     if old_uri[-1] != '/':
         new_uri += '/'
-        # Add slash to the end to prevent any downloading
+        # Add slash to the end to prevent downloading
 
     info(f'URI updated: {old_uri} >>> {new_uri}')
     return new_uri
@@ -83,7 +83,7 @@ def get_normalized_uri(old_uri):
 
 def exec_multi(threads, function, multi_args):
     """
-    Run function on thread_count threads
+    Run function on threads(count)
 
     Args:
         threads(int):
@@ -228,7 +228,7 @@ def html_tag_parser(node, tag):
 
 def nodelist_checker(node_, nodelist):
     """
-    Find 'node' inside the parentals from 'nodelist',
+    Find 'node' inside the parental from 'nodelist',
     if found: return 1
     if not: return 0
 
